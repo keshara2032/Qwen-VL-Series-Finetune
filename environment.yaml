@@ -135,7 +135,6 @@ dependencies:
       - pandas==2.2.3
       - peft==0.15.2
       - pillow==11.3.0
-      - pillow-simd==9.5.0.post2
       - propcache==0.3.1
       - protobuf==6.30.2
       - py-cpuinfo==9.0.0
