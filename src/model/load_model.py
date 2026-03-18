@@ -4,13 +4,6 @@ from typing import Any
 
 from transformers import AutoConfig, AutoModelForImageTextToText, PretrainedConfig
 
-from model.modeling_cls import (
-    Qwen2VLForSequenceClassification,
-    Qwen2_5_VLForSequenceClassification,
-    Qwen3VLForSequenceClassification,
-    Qwen3_5ForSequenceClassification,
-    Qwen3_5MoeForSequenceClassification,
-)
 from train.monkey_patch_forward import (
     replace_qwen2_5_with_mixed_modality_forward,
     replace_qwen3_5_moe_with_mixed_modality_forward,
@@ -42,12 +35,12 @@ _PATCHERS = {
     "qwen3_vl_moe": (replace_qwen3_vl_moe_with_mixed_modality_forward,),
 }
 
-_SEQUENCE_CLASSIFICATION_MODEL_CLS = {
-    "qwen2_vl": Qwen2VLForSequenceClassification,
-    "qwen2_5_vl": Qwen2_5_VLForSequenceClassification,
-    "qwen3_5": Qwen3_5ForSequenceClassification,
-    "qwen3_5_moe": Qwen3_5MoeForSequenceClassification,
-    "qwen3_vl": Qwen3VLForSequenceClassification,
+_SEQUENCE_CLASSIFICATION_MODEL_NAMES = {
+    "qwen2_vl": "Qwen2VLForSequenceClassification",
+    "qwen2_5_vl": "Qwen2_5_VLForSequenceClassification",
+    "qwen3_5": "Qwen3_5ForSequenceClassification",
+    "qwen3_5_moe": "Qwen3_5MoeForSequenceClassification",
+    "qwen3_vl": "Qwen3VLForSequenceClassification",
 }
 
 
@@ -91,12 +84,16 @@ def load_qwen_vl_generation_model(
 
 def get_qwen_vl_sequence_classification_model_cls(model_type: str):
     try:
-        return _SEQUENCE_CLASSIFICATION_MODEL_CLS[model_type]
+        class_name = _SEQUENCE_CLASSIFICATION_MODEL_NAMES[model_type]
     except KeyError as exc:
-        supported = ", ".join(sorted(_SEQUENCE_CLASSIFICATION_MODEL_CLS))
+        supported = ", ".join(sorted(_SEQUENCE_CLASSIFICATION_MODEL_NAMES))
         raise ValueError(
             f"Unsupported Qwen-VL sequence classification model_type: {model_type}. Supported: {supported}"
         ) from exc
+
+    from . import modeling_cls
+
+    return getattr(modeling_cls, class_name)
 
 
 def load_qwen_vl_sequence_classification_model(

@@ -7,7 +7,7 @@
 #SBATCH --constraint=a100_80gb
 #SBATCH --time=3-00:00:00
 #SBATCH --cpus-per-task=24
-#SBATCH --mem=512G
+#SBATCH --mem=256G
 #SBATCH --ntasks=1
 #SBATCH --account="uva-dsa"
 
@@ -28,7 +28,7 @@ GRAD_ACCUM_STEPS=$((GLOBAL_BATCH_SIZE / (BATCH_PER_DEVICE * NUM_DEVICES)))
 VIDEO_TOKEN_BUDGET=64
 FPS=1
 NUM_EPOCHS=3
-SAVE_STEPS=50
+SAVE_STEPS=10
 
 module purge
 module load miniforge
@@ -57,7 +57,7 @@ echo "Using ${NUM_DEVICES} GPUs with grad accumulation ${GRAD_ACCUM_STEPS}"
 # If GPU memory is still tight, lower VIDEO_TOKEN_BUDGET further before raising fps.
 
 deepspeed src/train/train_sft.py \
-    --use_liger_kernel True \
+    --use_liger_kernel False \
     --lora_enable True \
     --use_dora False \
     --lora_namespan_exclude "['lm_head', 'embed_tokens']" \
@@ -97,4 +97,4 @@ deepspeed src/train/train_sft.py \
     --save_strategy "steps" \
     --save_steps "${SAVE_STEPS}" \
     --save_total_limit 6 \
-    --dataloader_num_workers 2
+    --dataloader_num_workers 4

@@ -1,20 +1,25 @@
+import ast
+import json
 import os
+import pathlib
+
 import torch
 from peft import LoraConfig, get_peft_model
-import ast
 from transformers import (
     AutoProcessor,
     BitsAndBytesConfig, 
     HfArgumentParser, 
 )
 from model.load_model import get_qwen_vl_generation_backbone, load_qwen_vl_generation_model
-from trainer import QwenSFTTrainer
+from trainer import GenerativeEvalPrediction, QwenSFTTrainer
 from dataset import make_supervised_data_module
 from params import DataArguments, ModelArguments, TrainingArguments
 from train.train_utils import get_peft_state_maybe_zero_3, get_peft_state_non_lora_maybe_zero_3, safe_save_model_for_hf_trainer
-import pathlib
 
 local_rank = None
+EMS_LABEL_ALIASES = {
+    "check_a&o": "check_AOx4",
+}
 
 def rank0_print(*args):
     if local_rank == 0 or local_rank == '0' or local_rank is None:
@@ -40,6 +45,88 @@ def find_target_linear_names(model, num_lora_modules=-1, lora_namespan_exclude=[
 def set_requires_grad(parameters, requires_grad):
     for p in parameters:
         p.requires_grad = requires_grad
+
+
+def canonicalize_ems_label(label):
+    if not isinstance(label, str):
+        return None
+    normalized = label.strip()
+    if not normalized:
+        return None
+    return EMS_LABEL_ALIASES.get(normalized, normalized)
+
+
+def extract_json_payload(text):
+    if not isinstance(text, str):
+        return None
+
+    stripped = text.strip()
+    if not stripped:
+        return None
+
+    if stripped.startswith("```"):
+        lines = stripped.splitlines()
+        if lines:
+            lines = lines[1:]
+        if lines and lines[-1].strip().startswith("```"):
+            lines = lines[:-1]
+        stripped = "\n".join(lines).strip()
+
+    try:
+        return json.loads(stripped)
+    except json.JSONDecodeError:
+        start = stripped.find("{")
+        end = stripped.rfind("}")
+        if start == -1 or end == -1 or end <= start:
+            return None
+        try:
+            return json.loads(stripped[start : end + 1])
+        except json.JSONDecodeError:
+            return None
+
+
+def extract_keystep_label(text):
+    payload = extract_json_payload(text)
+    if isinstance(payload, dict):
+        return canonicalize_ems_label(payload.get("keystep"))
+    return None
+
+
+def compute_metrics(eval_pred: GenerativeEvalPrediction):
+    predictions = eval_pred.predictions
+    references = eval_pred.references
+
+    total = len(predictions)
+    if total == 0:
+        return {
+            "keystep_accuracy": 0.0,
+            "json_parse_rate": 0.0,
+            "keystep_parse_rate": 0.0,
+        }
+
+    correct = 0
+    json_parsed = 0
+    keysteps_parsed = 0
+
+    for prediction_text, reference_text in zip(predictions, references):
+        predicted_payload = extract_json_payload(prediction_text)
+        if isinstance(predicted_payload, dict):
+            json_parsed += 1
+
+        predicted_keystep = extract_keystep_label(prediction_text)
+        reference_keystep = extract_keystep_label(reference_text)
+
+        if predicted_keystep is not None:
+            keysteps_parsed += 1
+
+        if predicted_keystep is not None and reference_keystep is not None and predicted_keystep == reference_keystep:
+            correct += 1
+
+    return {
+        "keystep_accuracy": correct / total,
+        "json_parse_rate": json_parsed / total,
+        "keystep_parse_rate": keysteps_parsed / total,
+    }
 
 def configure_vision_tower(model, training_args, compute_dtype, device):
     backbone = get_qwen_vl_generation_backbone(model)
@@ -222,6 +309,7 @@ def train():
         model=model,
         processing_class=processor,
         args=training_args,
+        compute_metrics=compute_metrics if data_module.get("eval_dataset") is not None else None,
         **data_module
     )
 

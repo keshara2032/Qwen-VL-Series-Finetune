@@ -1,19 +1,33 @@
-from transformers.models.qwen2_vl.modeling_qwen2_vl import Qwen2VLModelOutputWithPast
+from __future__ import annotations
+
+from typing import Any, List, Optional, Tuple, Union
+
+import torch
+import transformers.models.qwen2_5_vl.modeling_qwen2_5_vl as qwen2_5_vl_modeling
+import transformers.models.qwen2_vl.modeling_qwen2_vl as qwen2_vl_modeling
+import transformers.models.qwen3_vl.modeling_qwen3_vl as qwen3_vl_modeling
+import transformers.models.qwen3_vl_moe.modeling_qwen3_vl_moe as qwen3_vl_moe_modeling
 from transformers.models.qwen2_5_vl.modeling_qwen2_5_vl import Qwen2_5_VLModelOutputWithPast
-from transformers.models.qwen3_5.modeling_qwen3_5 import Qwen3_5ModelOutputWithPast
-from transformers.models.qwen3_5_moe.modeling_qwen3_5_moe import Qwen3_5MoeModelOutputWithPast
+from transformers.models.qwen2_vl.modeling_qwen2_vl import Qwen2VLModelOutputWithPast
 from transformers.models.qwen3_vl.modeling_qwen3_vl import Qwen3VLModelOutputWithPast
 from transformers.models.qwen3_vl_moe.modeling_qwen3_vl_moe import Qwen3VLMoeModelOutputWithPast
-import torch
-from typing import Optional, List, Union, Tuple
-import transformers.models.qwen2_vl.modeling_qwen2_vl
-import transformers.models.qwen2_5_vl.modeling_qwen2_5_vl
-import transformers.models.qwen3_5.modeling_qwen3_5
-import transformers.models.qwen3_5_moe.modeling_qwen3_5_moe
-import transformers.models.qwen3_vl_moe.modeling_qwen3_vl_moe
 from transformers.utils import TransformersKwargs
 from transformers.processing_utils import Unpack
 from transformers.cache_utils import Cache
+
+try:
+    import transformers.models.qwen3_5.modeling_qwen3_5 as qwen3_5_modeling
+    from transformers.models.qwen3_5.modeling_qwen3_5 import Qwen3_5ModelOutputWithPast
+except ModuleNotFoundError:
+    qwen3_5_modeling = None
+    Qwen3_5ModelOutputWithPast = Any
+
+try:
+    import transformers.models.qwen3_5_moe.modeling_qwen3_5_moe as qwen3_5_moe_modeling
+    from transformers.models.qwen3_5_moe.modeling_qwen3_5_moe import Qwen3_5MoeModelOutputWithPast
+except ModuleNotFoundError:
+    qwen3_5_moe_modeling = None
+    Qwen3_5MoeModelOutputWithPast = Any
 
 
 def _flatten_vision_features(vision_outputs):
@@ -48,22 +62,30 @@ def _make_dummy_qwen3_visual_inputs(visual):
 
 
 def replace_qwen_2_with_mixed_modality_forward():
-    transformers.models.qwen2_vl.modeling_qwen2_vl.Qwen2VLModel.forward = qwen2_mixed_modality_forward
+    qwen2_vl_modeling.Qwen2VLModel.forward = qwen2_mixed_modality_forward
 
 def replace_qwen2_5_with_mixed_modality_forward():
-    transformers.models.qwen2_5_vl.modeling_qwen2_5_vl.Qwen2_5_VLModel.forward = qwen2_5_mixed_modality_forward
+    qwen2_5_vl_modeling.Qwen2_5_VLModel.forward = qwen2_5_mixed_modality_forward
 
 def replace_qwen3_with_mixed_modality_forward():
-    transformers.models.qwen3_vl.modeling_qwen3_vl.Qwen3VLModel.forward = qwen3_vl_mixed_modality_forward
+    qwen3_vl_modeling.Qwen3VLModel.forward = qwen3_vl_mixed_modality_forward
 
 def replace_qwen3_5_with_mixed_modality_forward():
-    transformers.models.qwen3_5.modeling_qwen3_5.Qwen3_5Model.forward = qwen3_5_mixed_modality_forward
+    if qwen3_5_modeling is None:
+        raise ModuleNotFoundError(
+            "transformers.models.qwen3_5 is unavailable in the active transformers install"
+        )
+    qwen3_5_modeling.Qwen3_5Model.forward = qwen3_5_mixed_modality_forward
 
 def replace_qwen3_5_moe_with_mixed_modality_forward():
-    transformers.models.qwen3_5_moe.modeling_qwen3_5_moe.Qwen3_5MoeModel.forward = qwen3_5_moe_mixed_modality_forward
+    if qwen3_5_moe_modeling is None:
+        raise ModuleNotFoundError(
+            "transformers.models.qwen3_5_moe is unavailable in the active transformers install"
+        )
+    qwen3_5_moe_modeling.Qwen3_5MoeModel.forward = qwen3_5_moe_mixed_modality_forward
 
 def replace_qwen3_vl_moe_with_mixed_modality_forward():
-    transformers.models.qwen3_vl_moe.modeling_qwen3_vl_moe.Qwen3VLMoeModel.forward = qwen3_vl_moe_mixed_modality_forward
+    qwen3_vl_moe_modeling.Qwen3VLMoeModel.forward = qwen3_vl_moe_mixed_modality_forward
 
 
 def _qwen3_5_mixed_modality_forward_impl(
